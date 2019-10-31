@@ -1,0 +1,5 @@
+/.bam/
+/obj/
+/pathtracer*
+local/
+compile_commands.json
