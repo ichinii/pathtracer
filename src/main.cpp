@@ -10,6 +10,8 @@
 #include "shader.hpp"
 #include <thread>
 
+// #define median
+
 using namespace std::chrono_literals;
 
 template <typename CharT, typename Traits, glm::length_t L, typename T, glm::qualifier Q>
@@ -50,9 +52,9 @@ int main()
 	// std::this_thread::sleep_for(1s);
 	auto display_program = createProgram({{GL_VERTEX_SHADER, "res/vertex.glsl"}, {GL_FRAGMENT_SHADER, "res/fragment.glsl"}});
 	auto compute_program = createProgram({{GL_COMPUTE_SHADER, "res/compute.glsl"}});
+	auto median_program = createProgram({{GL_COMPUTE_SHADER, "res/median.glsl"}});
 
 	glUseProgram(compute_program);
-
 	auto frame_tex_size = glm::uvec2(window_size);
 	GLuint frame_tex_out;
 	glGenTextures(1, &frame_tex_out);
@@ -88,11 +90,15 @@ int main()
 	using clock = std::chrono::steady_clock;
 	auto start_time = clock::now();
 	auto elapsed_time = 0ms;
+	auto sleeped_time = 0ms;
 
 	while (!glfwWindowShouldClose(window)) {
 		auto cur_time = clock::now();
 		auto delta_time = std::chrono::duration_cast<std::chrono::milliseconds>(cur_time - (start_time + elapsed_time));
 		elapsed_time += delta_time;
+
+		if (glfwGetKey(window, GLFW_KEY_E))
+			sleeped_time += delta_time;
 
 		glfwPollEvents();
 		glfwGetWindowSize(window, &window_size.x, &window_size.y);
@@ -102,15 +108,25 @@ int main()
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, frame_tex_size.x, frame_tex_size.y, 0, GL_RGBA, GL_FLOAT, nullptr);
 		glBindImageTexture(0, frame_tex_out, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
 
-		{ // launch compute shaders and draw to image
+		{ // launch compute shader and draw to image
 			glUseProgram(compute_program);
-			glUniform1f(glGetUniformLocation(compute_program, "elapsed_time"), elapsed_time.count() / 1000.f);
+			glUniform1f(glGetUniformLocation(compute_program, "elapsed_time"), (elapsed_time - sleeped_time).count() / 1000.f);
 			glUniform1f(glGetUniformLocation(compute_program, "delta_time"), delta_time.count() / 1000.f);
 			glDispatchCompute((GLuint)frame_tex_size.x, (GLuint)frame_tex_size.y, 1);
 		}
 
 		// make sure writing to image has finished before read
 		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+#ifdef median
+		{ // launch median shader
+			glUseProgram(median_program);
+			glDispatchCompute((GLuint)frame_tex_size.x, (GLuint)frame_tex_size.y, 1);
+		}
+
+		// make sure writing to image has finished before read
+		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+#endif
 		
 		{ // present image to screen
 			glUseProgram(display_program);

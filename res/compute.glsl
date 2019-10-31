@@ -195,7 +195,7 @@ void main() {
 			vec3 rr = reflect(rd, n);
 			vec3 rn = normalize(n + normalize(n33(p + mod(elapsed_time, 1.))));
 
-			rd = normalize(mix(rr, rn, .3));
+			rd = normalize(mix(rr, rn, sin(t * .02) * .5));
 			ro += rd * .001;
 
 		} else {
