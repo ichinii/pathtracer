@@ -207,8 +207,10 @@ void main() {
 	/* rc += n; */
 
 	if (!hl)
-		rc = vec3(0.);
-	c += mix(rc, imageLoad(img_output, ivec2(pixel_coord)).rgb, max(0., 1. - delta_time));
-	/* c = rc; */
+		rc = vec3(1, 0, 0);
+
+	/* c += mix(rc, imageLoad(img_output, ivec2(pixel_coord)).rgb, max(0., 1. - delta_time)); */
+	c = rc;
+
 	imageStore(img_output, ivec2(pixel_coord), vec4(c, 1));
 }

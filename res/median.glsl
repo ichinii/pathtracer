@@ -16,8 +16,9 @@ void main()
 	float r[sz];
 	float g[sz];
 	float b[sz];
+
 	for (int i = 0; i < sz; ++i) {
-		vec3 rgb = imageLoad(img_output, ivec2(pixel_coord + vec2(i % 3 - sx / 2, i / 3 - sy / 2))).rgb;
+		vec3 rgb = imageLoad(img_output, ivec2(pixel_coord + vec2(i % sx - sx / 2, i / sy - sy / 2))).rgb;
 		r[i] = rgb.r;
 		g[i] = rgb.g;
 		b[i] = rgb.b;
