@@ -195,7 +195,7 @@ void main() {
 			vec3 rr = reflect(rd, n);
 			vec3 rn = normalize(n + normalize(n33(p + mod(elapsed_time, 1.))));
 
-			rd = normalize(mix(rr, rn, sin(t * .02) * .5));
+			rd = normalize(mix(rr, rn, .3));
 			ro += rd * .001;
 
 		} else {
@@ -207,10 +207,10 @@ void main() {
 	/* rc += n; */
 
 	if (!hl)
-		rc = vec3(1, 0, 0);
+		rc = vec3(0, 0, 0);
 
-	/* c += mix(rc, imageLoad(img_output, ivec2(pixel_coord)).rgb, max(0., 1. - delta_time)); */
-	c = rc;
+	c += mix(rc, imageLoad(img_output, ivec2(pixel_coord)).rgb, max(0., 1. - delta_time));
+	/* c = rc; */
 
 	imageStore(img_output, ivec2(pixel_coord), vec4(c, 1));
 }
