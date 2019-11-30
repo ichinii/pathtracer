@@ -10,8 +10,8 @@ void main()
 	vec2 dims = vec2(imageSize(img_output));
   vec2 pixel_coord = gl_GlobalInvocationID.xy;
 
-	const int sx = 3;
-	const int sy = 3;
+	const int sx = 5;
+	const int sy = 5;
 	const int sz = sx * sy;
 	float r[sz];
 	float g[sz];

@@ -5,6 +5,7 @@ layout(rgba32f, binding = 0) uniform image2D img_output;
 
 uniform float elapsed_time;
 uniform float delta_time;
+uniform mat4 v;
 
 #define pi 3.141
 
@@ -51,23 +52,7 @@ float sphere(vec3 ro, vec3 rd, vec3 c, float r)
 
 float plane(vec3 ro, vec3 rd, vec3 o, vec3 n)
 {
-	/* dot(o + l * v, n) = 0. */
-	/* n.x * (o.x + x) +	n.y * (o.y + y) + n.z * (o.z + z) = 0 */
-	/* x = ro.x + rd.x * l; */
-	/* y = ro.y + rd.y * l; */
-	/* z = ro.z + rd.z * l; */
-  /*  */
-	/* n.x * (ro.x + rd.x * l - o.x) */
-	/* n.x * ro.x + n.x * rd.x * l - n.x * o.x */
-
-	/* dot(n, v - o) = 0 */
-	/* n.x * (x - o.x) + n.y * (y - o.y) + n.z * (z - o.z) */
-	/* n.x * (l * rd.x + ro.x - o.x) */
-	return - (n.x * ro.x - n.x * o.x + n.y * ro.y - n.y * o.y + n.z * ro.z - n.z * o.z) / (n.x * rd.x + n.y * rd.y + n.z * rd.z);
-	/* return (dot(n, ro) - dot(n, o)) / -dot(n, rd); */
-
-	/* float l = (n.x * ro.x - n.x * o.x + n.y * ro.y - n.y * o.y + n.z * ro.z - n.z * o.z) / (n.x * rd.x + n.y * rd.y + n.z * rd.z); */
-	/* return l; */
+	return (dot(n, o) - dot(n, ro)) / dot(n, rd);
 }
 
 struct material_t {
@@ -136,7 +121,8 @@ bool scene(vec3 ro, vec3 rd, out vec3 p, out vec3 n, out material_t m)
 	p = ro + rd * lmin;
 	m.color = mix(n33(vec3(si + 1)), vec3(1), .5);
 	m.metal = false;
-	m.roughness = 0.;
+	/* m.metal = n11(floor(elapsed_time * .2) + si + 5) < .2; */
+	m.roughness = n11(floor(elapsed_time * .2) + si + 10);
 	m.light = n11(floor(elapsed_time * .2) + si + 2) < .1;
 
 	if (si < sz)
@@ -165,8 +151,9 @@ void main() {
 	vec2 uv = (pixel_coord - dims * .5) / dims.y;
 	vec3 c = vec3(0);
 
-	vec3 ro = vec3(0);
-	vec3 rd = normalize(vec3(uv, 1));
+	vec3 ro = (v * vec4(0, 0, 0, 1)).xyz;
+	vec3 rd = (v * normalize(vec4(vec2(-uv.x, uv.y), -1, 0))).xyz;
+	/* vec3 rd = normalize(vec3(uv, 1)); */
 
 	vec3 b = vec3(cos(t) * 3., 3, sin(t) * 1.83);
 
@@ -192,10 +179,10 @@ void main() {
 			rl += length(p - ro);
 			ro = p;
 
-			vec3 rr = reflect(rd, n);
-			vec3 rn = normalize(n + normalize(n33(p + mod(elapsed_time, 1.))));
+			vec3 rr = normalize(reflect(rd, n));
+			vec3 rn = normalize(n + n33(p + mod(elapsed_time, 1.)) - .5);
 
-			rd = normalize(mix(rr, rn, .3));
+			rd = normalize(mix(rr, rn, m.roughness));
 			ro += rd * .001;
 
 		} else {
@@ -209,8 +196,8 @@ void main() {
 	if (!hl)
 		rc = vec3(0, 0, 0);
 
-	c += mix(rc, imageLoad(img_output, ivec2(pixel_coord)).rgb, max(0., 1. - delta_time));
-	/* c = rc; */
+	/* c += mix(rc, imageLoad(img_output, ivec2(pixel_coord)).rgb, max(0., 1. - delta_time)); */
+	c = rc;
 
 	imageStore(img_output, ivec2(pixel_coord), vec4(c, 1));
 }

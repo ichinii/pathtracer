@@ -10,12 +10,12 @@
 #include "shader.hpp"
 #include <thread>
 
-// #define median
+#define median
 
 using namespace std::chrono_literals;
 
 template <typename CharT, typename Traits, glm::length_t L, typename T, glm::qualifier Q>
-auto& operator << (std::basic_ostream<CharT, Traits>& os, glm::vec<L, T, Q>& vec)
+auto& operator << (std::basic_ostream<CharT, Traits>& os, const glm::vec<L, T, Q>& vec)
 {
 	if (L == 0) return os << "()";
 	os << '(' << vec[0];
@@ -23,13 +23,24 @@ auto& operator << (std::basic_ostream<CharT, Traits>& os, glm::vec<L, T, Q>& vec
 	return os << ')';
 }
 
-constexpr auto size = glm::uvec3(1, 1, 1) * 16u;
-constexpr auto length = size.x * size.y * size.z;
-using cube_t = unsigned char;
-using cubes_t = cube_t[length];
-constexpr auto speed = 1.f;
-using ortho_camera_t = struct { glm::vec3 pos, dir; };
-// using persp_camera_t = struct { glm::vec3 pos, dir; float fov; };
+template <typename CharT, typename Traits, glm::length_t C, glm::length_t R, typename T, glm::qualifier Q>
+auto& operator << (std::basic_ostream<CharT, Traits>& os, const glm::mat<C, R, T, Q>& m)
+{
+	if constexpr (C == 0 || R == 0)
+		return os << "/ \\";
+
+	for (glm::length_t y = 0; y < R; ++y) {
+		os << (y == 0 ? "/ " : (y == R - 1 ? "\\ " : "| "));
+		os << m[0][y];
+		for (glm::length_t x = 1; x < C; ++x) {
+			os << "\t" << m[x][y];
+		}
+		os << (y == 0 ? " \\" : (y == R - 1 ? " /" : " |")) << std::endl;
+	}
+	return os;
+}
+
+constexpr auto speed = .001f;
 
 int main()
 {
@@ -52,7 +63,7 @@ int main()
 	// std::this_thread::sleep_for(1s);
 	auto display_program = createProgram({{GL_VERTEX_SHADER, "res/vertex.glsl"}, {GL_FRAGMENT_SHADER, "res/fragment.glsl"}});
 	auto compute_program = createProgram({{GL_COMPUTE_SHADER, "res/compute.glsl"}});
-	auto median_program = createProgram({{GL_COMPUTE_SHADER, "res/median.glsl"}});
+	[[maybe_unused]] auto median_program = createProgram({{GL_COMPUTE_SHADER, "res/median.glsl"}});
 
 	glUseProgram(compute_program);
 	auto frame_tex_size = glm::uvec2(window_size);
@@ -87,6 +98,9 @@ int main()
 	glBindVertexArray(0);
 	glUseProgram(0);
 
+	auto p = glm::vec3(0);
+	auto d = glm::normalize(glm::vec3(0, 0, 1));
+
 	using clock = std::chrono::steady_clock;
 	auto start_time = clock::now();
 	auto elapsed_time = 0ms;
@@ -97,36 +111,44 @@ int main()
 		auto delta_time = std::chrono::duration_cast<std::chrono::milliseconds>(cur_time - (start_time + elapsed_time));
 		elapsed_time += delta_time;
 
-		if (glfwGetKey(window, GLFW_KEY_E))
-			sleeped_time += delta_time;
+		// p.x += delta_time.count() * speed * (glfwGetKey(window, GLFW_KEY_A) ? -1.f : (glfwGetKey(window, GLFW_KEY_D) ? 1.f : 0.f));
+		// p.z += delta_time.count() * speed * (glfwGetKey(window, GLFW_KEY_W) ? -1.f : (glfwGetKey(window, GLFW_KEY_S) ? 1.f : 0.f));
+		auto v = glm::lookAt(p, p + d, glm::vec3(0, 1, 0));
+		v = glm::inverse(v);
 
 		glfwPollEvents();
 		glfwGetWindowSize(window, &window_size.x, &window_size.y);
 		glViewport(0, 0, window_size.x, window_size.y);
-		frame_tex_size = glm::uvec2(window_size);
-		glBindTexture(GL_TEXTURE_2D, frame_tex_out);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, frame_tex_size.x, frame_tex_size.y, 0, GL_RGBA, GL_FLOAT, nullptr);
-		glBindImageTexture(0, frame_tex_out, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+		
+		if (glfwGetKey(window, GLFW_KEY_E))
+			sleeped_time += delta_time;
+		else {
+			frame_tex_size = glm::uvec2(window_size);
+			glBindTexture(GL_TEXTURE_2D, frame_tex_out);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, frame_tex_size.x, frame_tex_size.y, 0, GL_RGBA, GL_FLOAT, nullptr);
+			glBindImageTexture(0, frame_tex_out, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
 
-		{ // launch compute shader and draw to image
-			glUseProgram(compute_program);
-			glUniform1f(glGetUniformLocation(compute_program, "elapsed_time"), (elapsed_time - sleeped_time).count() / 1000.f);
-			glUniform1f(glGetUniformLocation(compute_program, "delta_time"), delta_time.count() / 1000.f);
-			glDispatchCompute((GLuint)frame_tex_size.x, (GLuint)frame_tex_size.y, 1);
-		}
+			{ // launch compute shader and draw to image
+				glUseProgram(compute_program);
+				glUniform1f(glGetUniformLocation(compute_program, "elapsed_time"), (elapsed_time - sleeped_time).count() / 1000.f + 10.f);
+				glUniform1f(glGetUniformLocation(compute_program, "delta_time"), delta_time.count() / 1000.f);
+				glUniformMatrix4fv(glGetUniformLocation(compute_program, "v"), 1, GL_FALSE, &v[0][0]);
+				glDispatchCompute((GLuint)frame_tex_size.x, (GLuint)frame_tex_size.y, 1);
+			}
 
-		// make sure writing to image has finished before read
-		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+			// make sure writing to image has finished before read
+			glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
 #ifdef median
-		{ // launch median shader
-			glUseProgram(median_program);
-			glDispatchCompute((GLuint)frame_tex_size.x, (GLuint)frame_tex_size.y, 1);
-		}
+			{ // launch median shader
+				glUseProgram(median_program);
+				glDispatchCompute((GLuint)frame_tex_size.x, (GLuint)frame_tex_size.y, 1);
+			}
 
-		// make sure writing to image has finished before read
-		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+			// make sure writing to image has finished before read
+			glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 #endif
+		}
 		
 		{ // present image to screen
 			glUseProgram(display_program);
